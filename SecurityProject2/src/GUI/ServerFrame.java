@@ -7,20 +7,23 @@ import java.awt.SystemColor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JRadioButton;
-import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
-import Client.ClientChat;
 import Server.ServerChat;
 
 public class ServerFrame extends JFrame implements ActionListener{
@@ -29,9 +32,18 @@ public class ServerFrame extends JFrame implements ActionListener{
 	public static JTextArea chatTextArea;
 	public static JRadioButton mod_server;
 	public static JTextField chatTextField;
+	public static JTextArea connectionCheck;
+	public static JButton keyGenerate_button;
 	public static JButton send_button;
+	public static JButton sendPublic_button;
 	private static JPanel contentPane;
-	public static JTextArea user_info;	
+	public static JTextArea user_info;
+	public static JTextArea keyPair_info;
+	public static JTextArea otherKeyPair_info;
+	public static PublicKey publicKey;
+	public static PrivateKey privateKey;
+	public static byte[] pubk;
+	public static byte[] prik;	
 	
 	public ServerFrame() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -49,7 +61,7 @@ public class ServerFrame extends JFrame implements ActionListener{
 		each_mode_panel.setLayout(new BorderLayout(0, 0));
 
 		// 첫번째
-		user_info = new JTextArea("Client : Not Connection");
+		user_info = new JTextArea("obtain relevant information for user");
 		each_mode_panel.add(user_info);
 		user_info.setEditable(false);
 		user_info.setEditable(false);
@@ -65,10 +77,11 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel.setBounds(31, 147, 529, 38);
 		contentPane.add(panel);
 		panel.setLayout(new BorderLayout(0, 0));
-
-		JTextArea textArea_1 = new JTextArea();
-		textArea_1.setEditable(false);
-		panel.add(textArea_1);
+		
+		//connection client check
+		connectionCheck = new JTextArea("Client : Not Connection");
+		connectionCheck.setEditable(false);
+		panel.add(connectionCheck);
 
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new LineBorder(new Color(0, 0, 0), 2));
@@ -129,16 +142,20 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_4.setBounds(2, 2, 521, 67);
 		panel_3.add(panel_4);
 		panel_4.setLayout(new BorderLayout(0, 0));
-
-		JTextArea textArea_5 = new JTextArea();
-		panel_4.add(textArea_5);
+		
+		//key_information 
+		keyPair_info = new JTextArea();
+		panel_4.add(keyPair_info);
+		JScrollPane keyInfoScrollPane = new JScrollPane(keyPair_info); 
+		panel_4.add(keyInfoScrollPane);
 
 		JPanel panel_5 = new JPanel();
 		panel_5.setBounds(12, 81, 495, 39);
 		panel_3.add(panel_5);
 
-		JButton btnNewButton_2 = new JButton("Key Generation");
-		panel_5.add(btnNewButton_2);
+		keyGenerate_button = new JButton("Key Generation");
+		keyGenerate_button.addActionListener(this);
+		panel_5.add(keyGenerate_button);
 
 		JButton btnNewButton_1 = new JButton("Load From A File");
 		panel_5.add(btnNewButton_1);
@@ -151,9 +168,10 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_3.add(panel_6);
 		panel_6.setLayout(null);
 
-		JButton btnNewButton_3 = new JButton("Send Public Key");
-		btnNewButton_3.setBounds(36, 14, 125, 29);
-		panel_6.add(btnNewButton_3);
+		sendPublic_button = new JButton("Send Public Key");
+		sendPublic_button.setBounds(36, 14, 125, 29);
+		sendPublic_button.addActionListener(this);
+		panel_6.add(sendPublic_button);
 
 		JPanel panel_7 = new JPanel();
 		panel_7.setBorder(new LineBorder(new Color(0, 0, 0)));
@@ -161,8 +179,8 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_6.add(panel_7);
 		panel_7.setLayout(new BorderLayout(0, 0));
 
-		JTextArea textArea_4 = new JTextArea();
-		panel_7.add(textArea_4);
+		otherKeyPair_info = new JTextArea();
+		panel_7.add(otherKeyPair_info);
 		// 라디오 버튼
 		JPanel radioPanel = new JPanel();
 		radioPanel.setBounds(5, 50, 203, 64);
@@ -172,6 +190,7 @@ public class ServerFrame extends JFrame implements ActionListener{
 		mod_server = new JRadioButton("Server");
 		radioPanel.add(mod_server);
 		setVisible(true);
+
 	}
 	public void ServerSendMessage() {
         try {
@@ -182,7 +201,7 @@ public class ServerFrame extends JFrame implements ActionListener{
                 //textArea 에 "bye" 출력 후
                 //stopSignal을 true로 설정 , 스트림 반환, 소켓 반환
                 ServerChat.stopSignal=true;
-                ServerChat.dos.close();
+                ServerChat.oos.close();
                 ServerChat.socket.close();
                 
                 //프로그램 종료
@@ -190,7 +209,7 @@ public class ServerFrame extends JFrame implements ActionListener{
             }else {
                 //입력된 메세지가 "/exit"가 아닐 경우( 전송할 메세지인 경우)
                 //클라이언트에게 메세지 전송
-                ServerChat.dos.writeUTF(text);
+                ServerChat.oos.writeUTF(text);
                 //초기화 및 커서요청
                 chatTextField.setText("");
                 chatTextField.requestFocus();
@@ -201,8 +220,52 @@ public class ServerFrame extends JFrame implements ActionListener{
             e.printStackTrace();
         }
     }
+	
+	public void GenerateRSAKey() throws NoSuchAlgorithmException {
+		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+		generator.initialize(2048);
+		KeyPair keyPair = generator.generateKeyPair();
+		publicKey = keyPair.getPublic();
+		privateKey = keyPair.getPrivate();
+		System.out.println("\n=== RSA Key Generation ===");
+		byte[] pubk = publicKey.getEncoded();
+		byte[] prik = privateKey.getEncoded();
+		
+		keyPair_info.append("\n Server Public Key : ");
+		for (byte b : pubk)
+			keyPair_info.append(String.format("%02X ", b));
+		System.out.println("\n Server Public Key Length : " + pubk.length + " byte");
+		keyPair_info.append("\n Server Private Key : ");
+		for (byte b : prik)
+			keyPair_info.append(String.format("%02X ", b));
+		System.out.println("\n Server Private Key Length : " + prik.length + " byte");
+	}
+	
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		ServerSendMessage();
+		if(e.getSource() == send_button)
+		{
+			ServerSendMessage();
+		}
+		else if(e.getSource() == keyGenerate_button) 
+		{
+			try {
+				GenerateRSAKey();
+			} catch (NoSuchAlgorithmException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+		}
+		else if(e.getSource() == sendPublic_button)
+		{
+			try {
+				ServerChat.oos.writeObject(publicKey);
+				ServerChat.oos.flush();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+		}
 	}
+	
 }
