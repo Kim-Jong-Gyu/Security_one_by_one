@@ -12,8 +12,12 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -42,12 +46,17 @@ public class ServerFrame extends JFrame implements ActionListener{
 	public static JTextArea otherKeyPair_info;
 	public static PublicKey publicKey;
 	public static PrivateKey privateKey;
+	public static JButton Search_file_btn;
+	public static JButton Send_file_btn;
+	public static JTextArea Upload_info;
+	public static JTextArea File_info;
+
 	public static byte[] pubk;
 	public static byte[] prik;	
 	
 	public ServerFrame() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		setBounds(100, 100, 581, 763);
+		setBounds(100, 100, 604, 806);
 		contentPane = new JPanel();
 		contentPane.setBorder(new EmptyBorder(5, 5, 5, 5));
 		setContentPane(contentPane);
@@ -56,25 +65,27 @@ public class ServerFrame extends JFrame implements ActionListener{
 		JPanel each_mode_panel = new JPanel();
 		each_mode_panel.setBackground(SystemColor.window);
 		each_mode_panel.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		each_mode_panel.setBounds(220, 32, 340, 82);
+		each_mode_panel.setBounds(220, 20, 340, 58);
 		contentPane.add(each_mode_panel);
 		each_mode_panel.setLayout(new BorderLayout(0, 0));
 
 		// 첫번째
-		user_info = new JTextArea("obtain relevant information for user");
+		user_info = new JTextArea();
 		each_mode_panel.add(user_info);
+		JScrollPane UserScrollPane = new JScrollPane(user_info);
+		each_mode_panel.add(UserScrollPane);
 		user_info.setEditable(false);
 		user_info.setEditable(false);
 		user_info.setBackground(Color.WHITE);
 
 		JLabel lblNewLabel = new JLabel("Commmuncation Mode");
 		lblNewLabel.setFont(new Font("Lucida Grande", Font.PLAIN, 14));
-		lblNewLabel.setBounds(20, 20, 177, 28);
+		lblNewLabel.setBounds(31, 6, 177, 28);
 		contentPane.add(lblNewLabel);
 
 		JPanel panel = new JPanel();
 		panel.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		panel.setBounds(31, 147, 529, 38);
+		panel.setBounds(31, 93, 529, 38);
 		contentPane.add(panel);
 		panel.setLayout(new BorderLayout(0, 0));
 		
@@ -85,13 +96,36 @@ public class ServerFrame extends JFrame implements ActionListener{
 
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		panel_1.setBounds(31, 604, 525, 117);
+		panel_1.setBounds(31, 582, 525, 196);
 		contentPane.add(panel_1);
-		panel_1.setLayout(new BorderLayout(0, 0));
-
-		JTextArea textArea_2 = new JTextArea();
-		textArea_2.setEditable(false);
-		panel_1.add(textArea_2);
+		panel_1.setLayout(null);
+		
+		JPanel panel_10 = new JPanel();
+		panel_10.setBorder(new LineBorder(new Color(0, 0, 0)));
+		panel_10.setBounds(6, 6, 513, 78);
+		panel_1.add(panel_10);
+		panel_10.setLayout(new BorderLayout(0, 0));
+		
+		File_info = new JTextArea();
+		panel_10.add(File_info);
+		
+		JPanel panel_11 = new JPanel();
+		panel_11.setBorder(new LineBorder(new Color(0, 0, 0)));
+		panel_11.setBounds(11, 96, 501, 45);
+		panel_1.add(panel_11);
+		panel_11.setLayout(new BorderLayout(0, 0));
+		
+		Upload_info = new JTextArea();
+		panel_11.add(Upload_info);
+		
+		Search_file_btn = new JButton("Search");
+		Search_file_btn.setBounds(98, 148, 117, 29);
+		Search_file_btn.addActionListener(this);
+		panel_1.add(Search_file_btn);
+		
+		Send_file_btn = new JButton("Send");
+		Send_file_btn.setBounds(277, 148, 117, 29);
+		panel_1.add(Send_file_btn);
 
 		JPanel panel_2 = new JPanel();
 		panel_2.setBorder(new LineBorder(new Color(0, 0, 0), 2));
@@ -133,7 +167,7 @@ public class ServerFrame extends JFrame implements ActionListener{
 
 		JPanel panel_3 = new JPanel();
 		panel_3.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		panel_3.setBounds(31, 215, 525, 193);
+		panel_3.setBounds(31, 143, 525, 265);
 		contentPane.add(panel_3);
 		panel_3.setLayout(null);
 
@@ -168,22 +202,33 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_3.add(panel_6);
 		panel_6.setLayout(null);
 
-		sendPublic_button = new JButton("Send Public Key");
-		sendPublic_button.setBounds(36, 14, 125, 29);
-		sendPublic_button.addActionListener(this);
-		panel_6.add(sendPublic_button);
-
 		JPanel panel_7 = new JPanel();
 		panel_7.setBorder(new LineBorder(new Color(0, 0, 0)));
-		panel_7.setBounds(173, 6, 316, 44);
+		panel_7.setBounds(22, 6, 467, 44);
 		panel_6.add(panel_7);
 		panel_7.setLayout(new BorderLayout(0, 0));
+		panel_7.add(otherScrollPane);
+		
+				otherKeyPair_info = new JTextArea();
+				panel_7.add(otherKeyPair_info);
+				JScrollPane otherScrollPane = new JScrollPane(otherKeyPair_info);
+		
+				sendPublic_button = new JButton("Send Public Key");
+				sendPublic_button.setBounds(76, 199, 140, 29);
+				panel_3.add(sendPublic_button);
+				
+				JButton btnNewButton_2 = new JButton("Receieve SecretKey");
+				btnNewButton_2.setBounds(242, 199, 156, 29);
+				panel_3.add(btnNewButton_2);
+				
+				JButton btnNewButton_3 = new JButton("Receieve Public Key");
+				btnNewButton_3.setBounds(76, 230, 140, 29);
+				panel_3.add(btnNewButton_3);
+				sendPublic_button.addActionListener(this);
 
-		otherKeyPair_info = new JTextArea();
-		panel_7.add(otherKeyPair_info);
 		// 라디오 버튼
 		JPanel radioPanel = new JPanel();
-		radioPanel.setBounds(5, 50, 203, 64);
+		radioPanel.setBounds(5, 32, 203, 49);
 		contentPane.add(radioPanel);
 		mod_client = new JRadioButton("Client");
 		radioPanel.add(mod_client);
@@ -195,7 +240,7 @@ public class ServerFrame extends JFrame implements ActionListener{
 	public void ServerSendMessage() {
         try {
             String text = chatTextField.getText();
-            
+        	String result = EncryptAES(text);
             //입력된 메세지가 "/exit" 일 경우
             if(text.equals("/exit")) {
                 //textArea 에 "bye" 출력 후
@@ -209,7 +254,7 @@ public class ServerFrame extends JFrame implements ActionListener{
             }else {
                 //입력된 메세지가 "/exit"가 아닐 경우( 전송할 메세지인 경우)
                 //클라이언트에게 메세지 전송
-                ServerChat.oos.writeUTF(text);
+                ServerChat.oos.writeObject(result);
                 //초기화 및 커서요청
                 chatTextField.setText("");
                 chatTextField.requestFocus();
@@ -227,18 +272,31 @@ public class ServerFrame extends JFrame implements ActionListener{
 		KeyPair keyPair = generator.generateKeyPair();
 		publicKey = keyPair.getPublic();
 		privateKey = keyPair.getPrivate();
-		System.out.println("\n=== RSA Key Generation ===");
 		byte[] pubk = publicKey.getEncoded();
 		byte[] prik = privateKey.getEncoded();
 		
 		keyPair_info.append("\n Server Public Key : ");
 		for (byte b : pubk)
 			keyPair_info.append(String.format("%02X ", b));
-		System.out.println("\n Server Public Key Length : " + pubk.length + " byte");
 		keyPair_info.append("\n Server Private Key : ");
 		for (byte b : prik)
 			keyPair_info.append(String.format("%02X ", b));
-		System.out.println("\n Server Private Key Length : " + prik.length + " byte");
+		}
+	
+	public String EncryptAES(String plaintext)
+	{
+		String result = null;
+		try {
+		    
+			Cipher cipher2 = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		    cipher2.init(Cipher.ENCRYPT_MODE, ServerChat.skey,new IvParameterSpec(ServerChat.iv.getBytes()));
+		 
+		    byte[] encryptedAES = cipher2.doFinal(plaintext.getBytes("UTF-8"));    
+		    result = new String(Base64.getEncoder().encode(encryptedAES));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return result;
 	}
 	
 	@Override
@@ -266,6 +324,12 @@ public class ServerFrame extends JFrame implements ActionListener{
 				e1.printStackTrace();
 			}
 		}
+		else if(e.getSource() == Search_file_btn)
+		{
+			JFileChooser jfc = new JFileChooser();
+			if(jfc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+				Upload_info.append("location : " + jfc.getSelectedFile().toString());
+			}
+		}
 	}
-	
 }
