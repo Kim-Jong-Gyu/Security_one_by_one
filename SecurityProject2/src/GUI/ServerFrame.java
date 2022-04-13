@@ -12,7 +12,10 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 
+import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -24,9 +27,10 @@ import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
+import Data.InputData;
 import Server.ServerChat;
 
-public class ServerFrame extends JFrame implements ActionListener{
+public class ServerFrame extends JFrame implements ActionListener {
 	public static JRadioButton radio[] = new JRadioButton[2];
 	public static JRadioButton mod_client;
 	public static JTextArea chatTextArea;
@@ -43,8 +47,8 @@ public class ServerFrame extends JFrame implements ActionListener{
 	public static PublicKey publicKey;
 	public static PrivateKey privateKey;
 	public static byte[] pubk;
-	public static byte[] prik;	
-	
+	public static byte[] prik;
+
 	public ServerFrame() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setBounds(100, 100, 581, 763);
@@ -61,8 +65,11 @@ public class ServerFrame extends JFrame implements ActionListener{
 		each_mode_panel.setLayout(new BorderLayout(0, 0));
 
 		// 첫번째
-		user_info = new JTextArea("obtain relevant information for user");
+		user_info = new JTextArea();
 		each_mode_panel.add(user_info);
+		JScrollPane scroll_1 = new JScrollPane(user_info);
+		each_mode_panel.add(scroll_1);
+		
 		user_info.setEditable(false);
 		user_info.setEditable(false);
 		user_info.setBackground(Color.WHITE);
@@ -77,21 +84,21 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel.setBounds(31, 147, 529, 38);
 		contentPane.add(panel);
 		panel.setLayout(new BorderLayout(0, 0));
-		
-		//connection client check
+
+		// connection client check
 		connectionCheck = new JTextArea("Client : Not Connection");
 		connectionCheck.setEditable(false);
 		panel.add(connectionCheck);
 
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		panel_1.setBounds(31, 604, 525, 117);
+		panel_1.setBounds(31, 604, 525, 64);
 		contentPane.add(panel_1);
 		panel_1.setLayout(new BorderLayout(0, 0));
 
-		JTextArea textArea_2 = new JTextArea();
-		textArea_2.setEditable(false);
-		panel_1.add(textArea_2);
+		JTextArea File_Info = new JTextArea();
+		File_Info.setEditable(false);
+		panel_1.add(File_Info);
 
 		JPanel panel_2 = new JPanel();
 		panel_2.setBorder(new LineBorder(new Color(0, 0, 0), 2));
@@ -106,17 +113,16 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_8.setLayout(new BorderLayout(0, 0));
 
 		// ChatTextAtrea
-		
+
 		chatTextArea = new JTextArea();
 		chatTextArea.setEditable(false);
 		panel_8.add(chatTextArea);
-		JScrollPane ChatScrollPane = new JScrollPane(chatTextArea); 
+		JScrollPane ChatScrollPane = new JScrollPane(chatTextArea);
 		panel_8.add(ChatScrollPane);
 
 		send_button = new JButton("Send");
 		send_button.setBounds(423, 100, 96, 29);
 		panel_2.add(send_button);
-
 
 		JPanel panel_9 = new JPanel();
 		panel_9.setBorder(new LineBorder(new Color(0, 0, 0)));
@@ -142,11 +148,11 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_4.setBounds(2, 2, 521, 67);
 		panel_3.add(panel_4);
 		panel_4.setLayout(new BorderLayout(0, 0));
-		
-		//key_information 
+
+		// key_information
 		keyPair_info = new JTextArea();
 		panel_4.add(keyPair_info);
-		JScrollPane keyInfoScrollPane = new JScrollPane(keyPair_info); 
+		JScrollPane keyInfoScrollPane = new JScrollPane(keyPair_info);
 		panel_4.add(keyInfoScrollPane);
 
 		JPanel panel_5 = new JPanel();
@@ -180,7 +186,11 @@ public class ServerFrame extends JFrame implements ActionListener{
 		panel_7.setLayout(new BorderLayout(0, 0));
 
 		otherKeyPair_info = new JTextArea();
+		
 		panel_7.add(otherKeyPair_info);
+		JScrollPane scroll_3 = new JScrollPane(otherKeyPair_info);
+		panel_7.add(scroll_3);
+		
 		// 라디오 버튼
 		JPanel radioPanel = new JPanel();
 		radioPanel.setBounds(5, 50, 203, 64);
@@ -189,37 +199,76 @@ public class ServerFrame extends JFrame implements ActionListener{
 		radioPanel.add(mod_client);
 		mod_server = new JRadioButton("Server");
 		radioPanel.add(mod_server);
+		
+		JButton btnNewButton_2 = new JButton("Search File");
+		btnNewButton_2.setBounds(422, 680, 117, 29);
+		contentPane.add(btnNewButton_2);
+		
+		JButton btnNewButton_3 = new JButton("Send File");
+		btnNewButton_3.setBounds(422, 706, 117, 29);
+		contentPane.add(btnNewButton_3);
+		
+		JPanel panel_10 = new JPanel();
+		panel_10.setBorder(new LineBorder(new Color(0, 0, 0)));
+		panel_10.setBounds(30, 680, 390, 44);
+		contentPane.add(panel_10);
+		panel_10.setLayout(new BorderLayout(0, 0));
+		
+		JTextArea Send_Info = new JTextArea();
+		panel_10.add(Send_Info);
 		setVisible(true);
 
 	}
+
 	public void ServerSendMessage() {
-        try {
-            String text = chatTextField.getText();
-            
-            //입력된 메세지가 "/exit" 일 경우
-            if(text.equals("/exit")) {
-                //textArea 에 "bye" 출력 후
-                //stopSignal을 true로 설정 , 스트림 반환, 소켓 반환
-                ServerChat.stopSignal=true;
-                ServerChat.oos.close();
-                ServerChat.socket.close();
-                
-                //프로그램 종료
-                System.exit(0);
-            }else {
-                //입력된 메세지가 "/exit"가 아닐 경우( 전송할 메세지인 경우)
-                //클라이언트에게 메세지 전송
-                ServerChat.oos.writeUTF(text);
-                //초기화 및 커서요청
-                chatTextField.setText("");
-                chatTextField.requestFocus();
-                
-            }
-            
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+		try {
+			InputData data = new InputData();
+			String text = ServerFrame.chatTextField.getText();
+			data = new InputData();
+			data.setCommand("RECIEVE_MESSAGE");
+			data.setObj(EncryptAES(text));
+			// 입력된 메세지가 "/exit" 일 경우
+			if (text.equals("/exit")) {
+				// textArea 에 "bye" 출력 후
+				// stopSignal을 true로 설정 , 스트림 반환, 소켓 반환
+				ServerChat.oos.close();
+				ServerChat.socket.close();
+
+				// 프로그램 종료
+				System.exit(0);
+			} else {
+				// 입력된 메세지가 "/exit"가 아닐 경우( 전송할 메세지인 경우)
+				// 클라이언트에게 메세지 전송
+				ServerChat.oos.writeObject(data);
+				// 초기화 및 커서요청
+				ServerChat.oos.flush();
+				chatTextField.setText("");
+				chatTextField.requestFocus();
+
+			}
+
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public String EncryptAES(String plaintext)
+	{
+		String result = null;
+		
+		try {
+		    
+			Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		    c.init(Cipher.ENCRYPT_MODE, ServerChat.skey, new IvParameterSpec(ServerChat.iv.getBytes()));	 
+		    byte[] encrypted = c.doFinal(plaintext.getBytes("UTF-8"));
+		    result = new String(Base64.getEncoder().encode(encrypted));
+		 
+		    
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return result;
+	}
 	
 	public void GenerateRSAKey() throws NoSuchAlgorithmException {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
@@ -230,36 +279,32 @@ public class ServerFrame extends JFrame implements ActionListener{
 		System.out.println("\n=== RSA Key Generation ===");
 		byte[] pubk = publicKey.getEncoded();
 		byte[] prik = privateKey.getEncoded();
-		
+
 		keyPair_info.append("\n Server Public Key : ");
 		for (byte b : pubk)
 			keyPair_info.append(String.format("%02X ", b));
-		System.out.println("\n Server Public Key Length : " + pubk.length + " byte");
 		keyPair_info.append("\n Server Private Key : ");
 		for (byte b : prik)
 			keyPair_info.append(String.format("%02X ", b));
-		System.out.println("\n Server Private Key Length : " + prik.length + " byte");
-	}
-	
+		}
+
 	@Override
 	public void actionPerformed(ActionEvent e) {
-		if(e.getSource() == send_button)
-		{
+		if (e.getSource() == send_button) {
 			ServerSendMessage();
-		}
-		else if(e.getSource() == keyGenerate_button) 
-		{
+		} else if (e.getSource() == keyGenerate_button) {
 			try {
 				GenerateRSAKey();
 			} catch (NoSuchAlgorithmException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
-		}
-		else if(e.getSource() == sendPublic_button)
-		{
+		} else if (e.getSource() == sendPublic_button) {
 			try {
-				ServerChat.oos.writeObject(publicKey);
+				InputData data = new InputData();
+				data.setCommand("RECIEVE_PUBLIC");
+				data.setObj(publicKey);
+				ServerChat.oos.writeObject(data);
 				ServerChat.oos.flush();
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
@@ -267,5 +312,4 @@ public class ServerFrame extends JFrame implements ActionListener{
 			}
 		}
 	}
-	
 }

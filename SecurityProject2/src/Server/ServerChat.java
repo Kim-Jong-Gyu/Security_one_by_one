@@ -1,19 +1,21 @@
 package Server;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
-import GUI.ClientFrame;
+import Data.EncryptedAESInfo;
+import Data.InputData;
 import GUI.ServerFrame;
 
 public class ServerChat {
@@ -27,9 +29,11 @@ public class ServerChat {
 	// between server and client about security
 	public static boolean securityConnection;
 	public static boolean connectStatus;// 클라이언트 접속 여부 저장
-	public static boolean stopSignal;// 쓰레드 종료 신호 저장
 	public static SecretKey skey;
-
+	public static InputData Command;
+	
+	public static String iv;
+	
 	public ServerChat() {
 		startService();// 채팅 서버 시작
 	}
@@ -70,58 +74,67 @@ public class ServerChat {
 
 			@Override
 			public void run() {
-				try {
-					receivePublic();
-				} catch (ClassNotFoundException | IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+				while (true) {
+					try {
+						receiveData();
+					} catch (ClassNotFoundException | IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				}
 			}
 		}).start();
+
 	}
 
 	public static void main(String[] args) {
 		new ServerChat();
 	}
 
-//	public void receiveMessage() {
-//		// 멀티 쓰레딩으로 메세지 수신 처리 작업 수행
-//		// boolean 타입 멤버변수 stopSignal 이 false 일 동안 반복해서 메세지 수신
-//		try {
-//			while (!stopSignal) {
-//				// 클라이언트가 writeUTF() 메서드로 전송한 메세지를 입력받기
-//				ServerFrame.chatTextArea.append("클라이언트 : " + ois.readUTF() + "\n");
-//			}
-//			// stopSignal 이 true 가 되면 메세지 수신 종료되므로 dis와 socket 반환
-//			ois.close();
-//			socket.close();
-//		} catch (EOFException e) {
-//			// 상대방이 접속 해제할 경우 소켓이 제거되면서 호출되는 예외
-//			ServerFrame.chatTextArea.append("클라이언트 접속이 해제되었습니다.\n");
-//			connectStatus = false;
-//		} catch (SocketException e) {
-//			ServerFrame.chatTextArea.append("서버 접속이 해제되었습니다.\n");
-//		} catch (IOException e) {
-//			e.printStackTrace();
-//		}
-//	}
+	public void receiveData() throws ClassNotFoundException, IOException {
+		try {
+			Command = (InputData) ois.readObject();
+			if (Command.getCommand().equals("RECIEVE_PUBLIC")) {
+				receivePublic((PublicKey) Command.getObj());
+			} else if (Command.getCommand().equals("RECIEVE_AES")) {
+				receiveAES((EncryptedAESInfo) Command.getObj());
+			} else if (Command.getCommand().equals("RECIEVE_FILE")) {
+//				receiveFile(Command.getObj());
+			} else if (Command.getCommand().equals("RECIEVE_MESSAGE")) {
+				receiveMessage((String) Command.getObj());
+			}
+		} catch (EOFException e) {
 
-	public void receivePublic() throws ClassNotFoundException, IOException {
-		client_pub = (PublicKey) ois.readObject();
+		}
+	}
+
+	private void receiveFile() {
+		// TODO Auto-generated method stub
+
+	}
+
+	public void receiveMessage(String text) {
+		ServerFrame.chatTextArea.append("client : " + DecryptAES(text) + "\n");
+	}
+
+	public void receivePublic(PublicKey pk) throws ClassNotFoundException, IOException {
+		client_pub = pk;
 		byte[] client_pubk = client_pub.getEncoded();
 		ServerFrame.otherKeyPair_info.append("\n Client Public Key : ");
 		for (byte b : client_pubk)
 			ServerFrame.otherKeyPair_info.append(String.format("%02X ", b));
 		System.out.println("\n Client Public Key Length : " + client_pubk.length + " byte");
 	}
-	
-	public void receiveAES() throws ClassNotFoundException, IOException {
-		byte[] encryptedAESkey = null;
-		encryptedAESkey = (byte[])ois.readObject();
-		skey = new SecretKeySpec(Decrypt_RSA(encryptedAESkey,ServerFrame.privateKey), "AES");
+
+	public void receiveAES(EncryptedAESInfo data) throws ClassNotFoundException, IOException {
+		byte[] encryptedAESkey = data.getEncryptedAESkey();
+		byte[] encryptedIv = data.getEncryptedIv();;
+		skey = new SecretKeySpec(Decrypt_RSA(encryptedAESkey), "AES");
+		byte[] decryptedIv = Decrypt_RSA(encryptedIv);
+		iv = new String(decryptedIv, "UTF-8");
 	}
 
-	public byte[] Decrypt_RSA(byte[] encrypted, PrivateKey privateKey) {
+	public byte[] Decrypt_RSA(byte[] encrypted) {
 
 		byte[] decrypted_RSA = null;
 
@@ -129,7 +142,7 @@ public class ServerChat {
 
 			Cipher cipher2 = Cipher.getInstance("RSA");
 
-			cipher2.init(Cipher.DECRYPT_MODE, privateKey);
+			cipher2.init(Cipher.DECRYPT_MODE, ServerFrame.privateKey);
 			decrypted_RSA = cipher2.doFinal(encrypted);
 
 		} catch (Exception e) {
@@ -139,15 +152,15 @@ public class ServerChat {
 	}
 
 	public String DecryptAES(String ciphertext) {
-		String result = null;
+	String result = null;
 		
 		try {
-		    Cipher cipher2 = Cipher.getInstance("AES/CBC/PKCS5Padding");
-		    cipher2.init(Cipher.DECRYPT_MODE, skey);
+		    Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		    c.init(Cipher.DECRYPT_MODE, skey, new IvParameterSpec(iv.getBytes("UTF-8")));
 		    
-		    // String - > byte
 		    byte[] decrypted = Base64.getDecoder().decode(ciphertext.getBytes("UTF-8"));
-		    result = new String(cipher2.doFinal(decrypted), "UTF-8");
+		    result = new String(c.doFinal(decrypted), "UTF-8");
+		    
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

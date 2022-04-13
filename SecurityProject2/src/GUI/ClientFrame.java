@@ -7,15 +7,17 @@ import java.awt.SystemColor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
-import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.util.Base64;
 
 import javax.crypto.Cipher;
 import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import javax.swing.JButton;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -28,6 +30,8 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
 import Client.ClientChat;
+import Data.EncryptedAESInfo;
+import Data.InputData;
 
 public class ClientFrame extends JFrame implements ActionListener {
 	public static JRadioButton radio[] = new JRadioButton[2];
@@ -47,10 +51,12 @@ public class ClientFrame extends JFrame implements ActionListener {
 	public static PrivateKey privateKey;
 	public static byte[] pubk;
 	public static byte[] prik;
+	public static String iv;
+
 	//
 	public static boolean checkMakeRSA = false;
 	public static JButton sendSecret_button;
-	public static Key key2;
+	public static SecretKey skey = null;
 
 	public ClientFrame() {
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -68,8 +74,10 @@ public class ClientFrame extends JFrame implements ActionListener {
 		each_mode_panel.setLayout(new BorderLayout(0, 0));
 
 		// 첫번째
-		user_info = new JTextArea("obtain relevant information for user");
+		user_info = new JTextArea();
 		each_mode_panel.add(user_info);
+		JScrollPane scroll_2 = new JScrollPane(user_info);
+		each_mode_panel.add(scroll_2);
 		user_info.setEditable(false);
 		user_info.setEditable(false);
 		user_info.setBackground(Color.WHITE);
@@ -182,6 +190,9 @@ public class ClientFrame extends JFrame implements ActionListener {
 
 		otherKeyPair_info = new JTextArea();
 		panel_7.add(otherKeyPair_info);
+		JScrollPane scroll_1 = new JScrollPane(otherKeyPair_info);
+		panel_7.add(scroll_1);
+		
 
 		sendPublic_button = new JButton("Send Public Key");
 		sendPublic_button.setBounds(30, 0, 131, 29);
@@ -205,8 +216,11 @@ public class ClientFrame extends JFrame implements ActionListener {
 
 	public void ClientsendMessage() {
 		try {
+			InputData data = new InputData();
 			String text = ClientFrame.chatTextField.getText();
-
+			data = new InputData();
+			data.setCommand("RECIEVE_MESSAGE");
+			data.setObj(EncryptAES(text));
 			// 입력된 메세지가 "/exit" 일 경우
 			if (text.equals("/exit")) {
 				// textArea 에 "bye" 출력 후
@@ -220,7 +234,7 @@ public class ClientFrame extends JFrame implements ActionListener {
 			} else {
 				// 입력된 메세지가 "/exit"가 아닐 경우( 전송할 메세지인 경우)
 				// 클라이언트에게 메세지 전송
-				ClientChat.oos.writeUTF(text);
+				ClientChat.oos.writeObject(data);
 				// 초기화 및 커서요청
 				ClientFrame.chatTextField.setText("");
 				ClientFrame.chatTextField.requestFocus();
@@ -254,24 +268,44 @@ public class ClientFrame extends JFrame implements ActionListener {
 	}
 
 	public void GenerateAES() throws NoSuchAlgorithmException {
-		KeyGenerator keyGen2 = KeyGenerator.getInstance("AES");
-		keyGen2.init(128);
-		key2 = keyGen2.generateKey();
-		byte[] printKey2 = key2.getEncoded();
-		System.out.print("Secret key generation complete: ");
-		for (byte b : printKey2)
-			System.out.printf("%02X ", b);
-		System.out.print("\nLength of secret key: " + printKey2.length + " byte");
+		SecretKey key = null;
+		try {
+			
+		    KeyGenerator gen = KeyGenerator.getInstance("AES");
+		    gen.init(256);
+		    
+		    skey = gen.generateKey();
+		    
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	public static String EncryptAES(String plaintext)
+	{
+		String result = null;
+		
+		try {
+		    
+			Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+		    c.init(Cipher.ENCRYPT_MODE, skey, new IvParameterSpec(iv.getBytes()));
+		 
+		    byte[] encrypted = c.doFinal(plaintext.getBytes("UTF-8"));
+		    result = new String(Base64.getEncoder().encode(encrypted));    
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		return result;
 	}
 
-	public byte[] EncryptRSA(byte[] plaintext, PublicKey publickey) {
+	public byte[] EncryptRSA(byte[] plaintext) {
 		byte[] encryptedSecret = null;
-		
+
 		try {
 
 			Cipher cipher = Cipher.getInstance("RSA");
 
-			cipher.init(Cipher.ENCRYPT_MODE, publicKey);
+			cipher.init(Cipher.ENCRYPT_MODE, ClientChat.server_pub);
 			encryptedSecret = cipher.doFinal(plaintext);
 
 		} catch (Exception e) {
@@ -293,27 +327,33 @@ public class ClientFrame extends JFrame implements ActionListener {
 				e1.printStackTrace();
 			}
 		} else if (e.getSource() == sendPublic_button) {
-			if (checkMakeRSA == false) {
-				user_info.append("Should make public key");
-			} else {
-				try {
-					ClientChat.oos.writeObject(publicKey);
-					ClientChat.oos.flush();
-				} catch (IOException e1) {
-					// TODO Auto-generated catch block
-					e1.printStackTrace();
-				}
+			try {
+				InputData data = new InputData();
+				data = new InputData();
+				data.setCommand("RECIEVE_PUBLIC");
+				data.setObj(publicKey);
+				ClientChat.oos.writeObject(data);
+				ClientChat.oos.flush();
+			} catch (IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
 			}
 		} else if (e.getSource() == sendSecret_button) {
 			try {
-				if (ClientChat.getSubpubk == false) {
-					user_info.append("should get the server public key");
-				} else {
-					byte[] encrypted_AESkey = null;
-					GenerateAES();
-					encrypted_AESkey = EncryptRSA(key2.getEncoded(),ClientChat.server_pub);
-					ClientChat.oos.writeObject(encrypted_AESkey);	
-				}
+				EncryptedAESInfo obj = new EncryptedAESInfo();
+				InputData data = new InputData();
+				byte[] encrypted_AESkey = null;
+				byte[] encryptedIv = null;
+				iv = "1234567812345678";
+				GenerateAES();
+				encryptedIv = EncryptRSA(iv.getBytes("UTF-8"));
+				encrypted_AESkey = EncryptRSA(skey.getEncoded());
+				obj.setEncryptedAESkey(encrypted_AESkey);
+				obj.setEncryptedIv(encryptedIv);
+				data.setCommand("RECIEVE_AES");
+				data.setObj(obj);
+				ClientChat.oos.writeObject(data);
+				ClientChat.oos.flush();
 			} catch (NoSuchAlgorithmException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
