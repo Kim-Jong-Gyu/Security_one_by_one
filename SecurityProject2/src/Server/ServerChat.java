@@ -1,12 +1,18 @@
 package Server;
 
+import java.io.ByteArrayOutputStream;
 import java.io.EOFException;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
@@ -16,6 +22,7 @@ import javax.crypto.spec.SecretKeySpec;
 
 import Data.EncryptedAESInfo;
 import Data.InputData;
+import Data.SendFileData;
 import GUI.ServerFrame;
 
 public class ServerChat {
@@ -26,14 +33,14 @@ public class ServerChat {
 	public static ObjectInputStream ois = null;
 	public static ObjectOutputStream oos = null;
 
-	// between server and client about security
-	public static boolean securityConnection;
 	public static boolean connectStatus;// 클라이언트 접속 여부 저장
 	public static SecretKey skey;
 	public static InputData Command;
-	
+	public static String filename;
+
 	public static String iv;
-	
+	public static byte[] file = null;
+
 	public ServerChat() {
 		startService();// 채팅 서버 시작
 	}
@@ -69,6 +76,7 @@ public class ServerChat {
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
+			ServerFrame.user_info.append("Connect Failed\n");
 		}
 		new Thread(new Runnable() {
 
@@ -78,6 +86,15 @@ public class ServerChat {
 					try {
 						receiveData();
 					} catch (ClassNotFoundException | IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (InvalidKeyException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (NoSuchAlgorithmException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (SignatureException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();
 					}
@@ -91,7 +108,8 @@ public class ServerChat {
 		new ServerChat();
 	}
 
-	public void receiveData() throws ClassNotFoundException, IOException {
+	public void receiveData() throws ClassNotFoundException, IOException, InvalidKeyException, NoSuchAlgorithmException,
+			SignatureException {
 		try {
 			Command = (InputData) ois.readObject();
 			if (Command.getCommand().equals("RECIEVE_PUBLIC")) {
@@ -99,18 +117,36 @@ public class ServerChat {
 			} else if (Command.getCommand().equals("RECIEVE_AES")) {
 				receiveAES((EncryptedAESInfo) Command.getObj());
 			} else if (Command.getCommand().equals("RECIEVE_FILE")) {
-//				receiveFile(Command.getObj());
+				receiveFile((SendFileData) Command.getObj());
 			} else if (Command.getCommand().equals("RECIEVE_MESSAGE")) {
 				receiveMessage((String) Command.getObj());
 			}
 		} catch (EOFException e) {
-
+			ServerFrame.user_info.append(Command.getCommand() + "failed!\n");
 		}
 	}
 
-	private void receiveFile() {
-		// TODO Auto-generated method stub
-
+	public void receiveFile(SendFileData data)
+			throws NoSuchAlgorithmException, InvalidKeyException, IOException, SignatureException {
+		Signature sig2 = Signature.getInstance("SHA512WithRSA");
+		sig2.initVerify(client_pub);
+		ByteArrayOutputStream boas = new ByteArrayOutputStream();
+		byte[] fileDataByte = null;
+		ObjectOutputStream ois = new ObjectOutputStream(boas);
+		ois.writeObject(data.getEncryptedMessage());
+		fileDataByte = boas.toByteArray();
+		// Encrypted data used by hash function
+		boas.close();
+		ois.close();
+		sig2.update(fileDataByte);
+		if (sig2.verify(data.getSignatureData())) {
+			filename = DecryptAES(data.getEncryptedMessage().getFilename());
+			String strfile = DecryptAES(data.getEncryptedMessage().getFile());
+			file = strfile.getBytes("UTF-8");
+			ServerFrame.File_Info.append("Client : " + filename + "\n");
+		} else {
+			ServerFrame.File_Info.append("Client : " + filename + "is not verifying" + "\n");
+		}
 	}
 
 	public void receiveMessage(String text) {
@@ -123,15 +159,16 @@ public class ServerChat {
 		ServerFrame.otherKeyPair_info.append("\n Client Public Key : ");
 		for (byte b : client_pubk)
 			ServerFrame.otherKeyPair_info.append(String.format("%02X ", b));
-		System.out.println("\n Client Public Key Length : " + client_pubk.length + " byte");
-	}
+		}
 
 	public void receiveAES(EncryptedAESInfo data) throws ClassNotFoundException, IOException {
 		byte[] encryptedAESkey = data.getEncryptedAESkey();
-		byte[] encryptedIv = data.getEncryptedIv();;
+		byte[] encryptedIv = data.getEncryptedIv();
+		;
 		skey = new SecretKeySpec(Decrypt_RSA(encryptedAESkey), "AES");
 		byte[] decryptedIv = Decrypt_RSA(encryptedIv);
 		iv = new String(decryptedIv, "UTF-8");
+		ServerFrame.user_info.append("Sharing the Secret Key\n");
 	}
 
 	public byte[] Decrypt_RSA(byte[] encrypted) {
@@ -152,15 +189,15 @@ public class ServerChat {
 	}
 
 	public String DecryptAES(String ciphertext) {
-	String result = null;
-		
+		String result = null;
+
 		try {
-		    Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
-		    c.init(Cipher.DECRYPT_MODE, skey, new IvParameterSpec(iv.getBytes("UTF-8")));
-		    
-		    byte[] decrypted = Base64.getDecoder().decode(ciphertext.getBytes("UTF-8"));
-		    result = new String(c.doFinal(decrypted), "UTF-8");
-		    
+			Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+			c.init(Cipher.DECRYPT_MODE, skey, new IvParameterSpec(iv.getBytes("UTF-8")));
+
+			byte[] decrypted = Base64.getDecoder().decode(ciphertext.getBytes("UTF-8"));
+			result = new String(c.doFinal(decrypted), "UTF-8");
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

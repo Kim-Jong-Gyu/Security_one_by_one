@@ -6,17 +6,26 @@ import java.awt.Font;
 import java.awt.SystemColor;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectOutputStream;
+import java.security.InvalidKeyException;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
+import java.security.SignatureException;
 import java.util.Base64;
 
 import javax.crypto.Cipher;
 import javax.crypto.spec.IvParameterSpec;
 import javax.swing.JButton;
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -27,7 +36,9 @@ import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 import javax.swing.border.LineBorder;
 
+import Data.FileData;
 import Data.InputData;
+import Data.SendFileData;
 import Server.ServerChat;
 
 public class ServerFrame extends JFrame implements ActionListener {
@@ -46,6 +57,11 @@ public class ServerFrame extends JFrame implements ActionListener {
 	public static JTextArea otherKeyPair_info;
 	public static PublicKey publicKey;
 	public static PrivateKey privateKey;
+	public static JTextArea File_Info;
+	public static JButton SavFile_btn;
+	public static JButton SendFile_btn;
+	public static JTextArea SendFile_Info;
+
 	public static byte[] pubk;
 	public static byte[] prik;
 
@@ -69,7 +85,7 @@ public class ServerFrame extends JFrame implements ActionListener {
 		each_mode_panel.add(user_info);
 		JScrollPane scroll_1 = new JScrollPane(user_info);
 		each_mode_panel.add(scroll_1);
-		
+
 		user_info.setEditable(false);
 		user_info.setEditable(false);
 		user_info.setBackground(Color.WHITE);
@@ -92,11 +108,11 @@ public class ServerFrame extends JFrame implements ActionListener {
 
 		JPanel panel_1 = new JPanel();
 		panel_1.setBorder(new LineBorder(new Color(0, 0, 0), 2));
-		panel_1.setBounds(31, 604, 525, 64);
+		panel_1.setBounds(31, 586, 525, 82);
 		contentPane.add(panel_1);
 		panel_1.setLayout(new BorderLayout(0, 0));
 
-		JTextArea File_Info = new JTextArea();
+		File_Info = new JTextArea();
 		File_Info.setEditable(false);
 		panel_1.add(File_Info);
 
@@ -186,11 +202,11 @@ public class ServerFrame extends JFrame implements ActionListener {
 		panel_7.setLayout(new BorderLayout(0, 0));
 
 		otherKeyPair_info = new JTextArea();
-		
+
 		panel_7.add(otherKeyPair_info);
 		JScrollPane scroll_3 = new JScrollPane(otherKeyPair_info);
 		panel_7.add(scroll_3);
-		
+
 		// 라디오 버튼
 		JPanel radioPanel = new JPanel();
 		radioPanel.setBounds(5, 50, 203, 64);
@@ -199,23 +215,26 @@ public class ServerFrame extends JFrame implements ActionListener {
 		radioPanel.add(mod_client);
 		mod_server = new JRadioButton("Server");
 		radioPanel.add(mod_server);
-		
-		JButton btnNewButton_2 = new JButton("Search File");
-		btnNewButton_2.setBounds(422, 680, 117, 29);
-		contentPane.add(btnNewButton_2);
-		
-		JButton btnNewButton_3 = new JButton("Send File");
-		btnNewButton_3.setBounds(422, 706, 117, 29);
-		contentPane.add(btnNewButton_3);
-		
+
+		SavFile_btn = new JButton("Save File");
+		SavFile_btn.setBounds(422, 680, 117, 29);
+		SavFile_btn.addActionListener(this);
+		contentPane.add(SavFile_btn);
+
+		SendFile_btn = new JButton("Send File");
+		SendFile_btn.setBounds(422, 706, 117, 29);
+		SendFile_btn.addActionListener(this);
+		contentPane.add(SendFile_btn);
+
 		JPanel panel_10 = new JPanel();
 		panel_10.setBorder(new LineBorder(new Color(0, 0, 0)));
 		panel_10.setBounds(30, 680, 390, 44);
 		contentPane.add(panel_10);
 		panel_10.setLayout(new BorderLayout(0, 0));
-		
-		JTextArea Send_Info = new JTextArea();
-		panel_10.add(Send_Info);
+
+		SendFile_Info = new JTextArea();
+		SendFile_Info.setEditable(false);
+		panel_10.add(SendFile_Info);
 		setVisible(true);
 
 	}
@@ -251,42 +270,80 @@ public class ServerFrame extends JFrame implements ActionListener {
 			e.printStackTrace();
 		}
 	}
-	
-	public String EncryptAES(String plaintext)
-	{
+
+	public String EncryptAES(String plaintext) {
 		String result = null;
-		
+
 		try {
-		    
+
 			Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
-		    c.init(Cipher.ENCRYPT_MODE, ServerChat.skey, new IvParameterSpec(ServerChat.iv.getBytes()));	 
-		    byte[] encrypted = c.doFinal(plaintext.getBytes("UTF-8"));
-		    result = new String(Base64.getEncoder().encode(encrypted));
-		 
-		    
+			c.init(Cipher.ENCRYPT_MODE, ServerChat.skey, new IvParameterSpec(ServerChat.iv.getBytes()));
+			byte[] encrypted = c.doFinal(plaintext.getBytes("UTF-8"));
+			result = new String(Base64.getEncoder().encode(encrypted));
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 		return result;
 	}
-	
+
 	public void GenerateRSAKey() throws NoSuchAlgorithmException {
 		KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
 		generator.initialize(2048);
 		KeyPair keyPair = generator.generateKeyPair();
 		publicKey = keyPair.getPublic();
 		privateKey = keyPair.getPrivate();
-		System.out.println("\n=== RSA Key Generation ===");
 		byte[] pubk = publicKey.getEncoded();
 		byte[] prik = privateKey.getEncoded();
-
+		user_info.append("Generate Server Key!\n");
 		keyPair_info.append("\n Server Public Key : ");
 		for (byte b : pubk)
 			keyPair_info.append(String.format("%02X ", b));
 		keyPair_info.append("\n Server Private Key : ");
 		for (byte b : prik)
 			keyPair_info.append(String.format("%02X ", b));
+	}
+
+	public void SendFile() throws IOException, NoSuchAlgorithmException, InvalidKeyException, SignatureException {
+		FileData fileData = new FileData();
+		JFileChooser jfc = new JFileChooser();
+		InputData obj = new InputData();
+		if (jfc.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
+			FileInputStream fis = new FileInputStream(jfc.getSelectedFile());
+			SendFile_Info.setText(jfc.getSelectedFile().getName());
+			int len = fis.available();
+			byte[] data = new byte[len];
+			fis.read(data);
+			String strfile = new String(data);
+			// for making signature
+			fileData.setFile(EncryptAES(strfile));
+			fileData.setFilename(EncryptAES(jfc.getSelectedFile().getName()));
+			// Sign signature
+			Signature sig2 = Signature.getInstance("SHA512WithRSA");
+			sig2.initSign(privateKey);
+			//
+			// object -> byte
+			ByteArrayOutputStream boas = new ByteArrayOutputStream();
+			byte[] fileDataByte = null;
+			ObjectOutputStream ois = new ObjectOutputStream(boas);
+			ois.writeObject(fileData);
+			fileDataByte = boas.toByteArray();
+			// Encrypted data used by hash function
+			boas.close();
+			ois.close();
+			sig2.update(fileDataByte);
+			byte[] signatureFile = sig2.sign();
+			SendFileData sendData = new SendFileData();
+			sendData.setEncryptedMessage(fileData);
+			sendData.setSignatureData(signatureFile);
+			fis.close();
+			obj.setObj(sendData);
+			obj.setCommand("RECIEVE_FILE");
+			System.out.println("check send file");
+			ServerChat.oos.writeObject(obj);
+			ServerChat.oos.flush();
 		}
+	}
 
 	@Override
 	public void actionPerformed(ActionEvent e) {
@@ -298,6 +355,7 @@ public class ServerFrame extends JFrame implements ActionListener {
 			} catch (NoSuchAlgorithmException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
+				user_info.append("RSA Key Generation fail\n");
 			}
 		} else if (e.getSource() == sendPublic_button) {
 			try {
@@ -309,7 +367,36 @@ public class ServerFrame extends JFrame implements ActionListener {
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
+				user_info.append("Failed SendPublic\n");
 			}
+		} else if (e.getSource() == SendFile_btn) {
+			try {
+				SendFile_Info.setText("");
+				SendFile();
+			} catch (InvalidKeyException | NoSuchAlgorithmException | SignatureException | IOException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+				user_info.append("Failed Send File\n");
+			}
+		} else if (e.getSource() == SavFile_btn) {
+			JFileChooser jfc = new JFileChooser();
+			jfc.setDialogTitle("Save");
+			if (jfc.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+				try {
+					FileOutputStream fos = new FileOutputStream(jfc.getSelectedFile());
+					fos.write(ServerChat.file);
+					fos.flush();
+					fos.close();
+				} catch (FileNotFoundException e2) {
+					// TODO Auto-generated catch bloc
+					e2.printStackTrace();
+					user_info.append("Files not found!\n");
+				} catch (IOException e1) {
+					// TODO Auto-generated catch block
+					e1.printStackTrace();
+				}
+			}
+
 		}
 	}
 }
