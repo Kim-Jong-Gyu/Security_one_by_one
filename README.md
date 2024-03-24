@@ -59,7 +59,7 @@
     
     - 서버의 public key를 전송을 하고 클라이언트에서 그 public key를 이용해 AES 대칭키를 암호화 시킨후 서버 측으로 다시 전송
     - 서버 측에서 클라이언트가 전송한 대칭키를 RSA 복호화를 통해 해독한 후 대칭키를 소유
-    - 공유된 대칭키를 이용해 채탕 내용을 암호화 및 복호화 작업 수행
+    - 공유된 대칭키를 이용해 채팅 내용을 암호화 및 복호화 작업 수행
 - 파일 송/수신
     
     <img width="266" alt="Untitled (5)" src="https://github.com/Kim-Jong-Gyu/Security_one_by_one/assets/62927374/ec01eb58-583c-4d98-bb35-06709ed6fb9b">
